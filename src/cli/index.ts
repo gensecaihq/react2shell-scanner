@@ -652,6 +652,11 @@ program
       formatTextOutput(result);
     }
 
+    // Exit with code 2 if there were errors (file not found, parse errors, etc.)
+    if (result.errors.length > 0 && result.projects.length === 0) {
+      process.exit(2);
+    }
+
     if (result.vulnerable && options.exitOnVuln !== false) {
       process.exit(1);
     }
@@ -698,6 +703,11 @@ program
       formatTextOutput(result);
     } else {
       formatTextOutput(result);
+    }
+
+    // Exit with code 2 if there were errors (path not found, etc.)
+    if (result.errors.length > 0 && result.projects.length === 0) {
+      process.exit(2);
     }
 
     // Exit with code 1 if vulnerabilities found (unless --no-exit-on-vuln)
