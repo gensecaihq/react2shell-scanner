@@ -179,6 +179,26 @@ react2shell-guard scan-url urls.txt --list
 react2shell-guard scan-url https://example.com --timeout 5000 --json
 ```
 
+### How Live URL Scanning Works
+
+The scanner uses **passive fingerprinting** to detect vulnerable React Server Components endpoints without exploiting the vulnerability:
+
+1. **Probe Request**: Sends a crafted POST request simulating an RSC Server Action call with a minimal payload:
+   - Uses `multipart/form-data` content type with RSC-like data structure
+   - Includes `Next-Action` header to trigger Server Action processing
+
+2. **Response Analysis**: Analyzes the HTTP response for vulnerability signatures:
+   - Checks for HTTP 500 status code (error response)
+   - Matches response body against RSC Flight protocol error patterns:
+     - `^[0-9]+:E{` - RSC Flight protocol error format
+     - `"digest":"...RSC` - RSC digest in error responses
+     - `ReactServerComponentsError` - React error class names
+     - `text/x-component.*error` - Component error content type
+
+3. **Non-Destructive**: This is purely a detection mechanism - it does **not** execute any malicious payload or exploit the vulnerability. The probe uses benign data that triggers error responses on vulnerable servers but causes no harm.
+
+> **Note**: A positive detection means the server is running a vulnerable version and returned an RSC-specific error signature. It does NOT mean the server was exploited.
+
 ### URL Scanner Options
 
 | Option | Description |
@@ -201,6 +221,22 @@ react2shell-guard verify-patch https://example.com
 # With JSON output
 react2shell-guard verify-patch https://example.com --json
 ```
+
+### How Patch Verification Works
+
+Patch verification performs **multiple consecutive scans** (default: 3) with brief delays between them to ensure accurate detection:
+
+1. **Multiple Probes**: Runs the same passive fingerprinting check 3 times with 500ms delays
+2. **Confidence Scoring**:
+   - **High confidence**: 2+ successful scans with consistent results
+   - **Medium confidence**: 1 successful scan with conclusive result
+   - **Low confidence**: All scans failed or inconclusive results
+3. **Result Classification**:
+   - **PATCHED**: No vulnerability signatures detected across all successful scans
+   - **VULNERABLE**: Vulnerability signature detected in one or more scans
+   - **Inconclusive**: Mixed results or all scans failed
+
+This multi-scan approach reduces false positives from transient network issues and provides higher confidence in the patch status.
 
 ### Verification Options
 
