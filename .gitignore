@@ -37,6 +37,7 @@ temp/
 # Internal documentation
 TODO.md
 
-# Package manager locks (keep only package-lock.json)
-yarn.lock
-pnpm-lock.yaml
+# Package manager locks in root (keep only package-lock.json)
+# But allow them in examples/ for testing
+/yarn.lock
+/pnpm-lock.yaml
