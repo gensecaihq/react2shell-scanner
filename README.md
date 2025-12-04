@@ -84,7 +84,9 @@ npx react2shell-guard create-pr            # Create PR
 
 ## What is CVE-2025-55182?
 
-CVE-2025-55182 is a critical pre-auth RCE vulnerability affecting React Server Components (RSC) and frameworks using the RSC "Flight" protocol. The vulnerability is caused by unsafe deserialization of RSC payloads, allowing attackers to execute arbitrary code on affected servers.
+On November 29th, 2025, security researcher Lachlan Davidson discovered and responsibly disclosed a critical vulnerability in React Server Components. The flaw exists in how React decodes payloads sent to React Server Function endpoints, allowing unauthenticated attackers to achieve remote code execution on affected servers without any user interaction.
+
+CVE-2025-55182 is rated CVSS 10.0 (Critical) and affects React Server Components (RSC) and frameworks using the RSC "Flight" protocol.
 
 **Affected Packages:**
 - `react-server-dom-webpack` 19.0.0, 19.1.0-19.1.1, 19.2.0
@@ -674,6 +676,12 @@ npm test
 # Run in development mode
 npm run dev
 ```
+
+## Acknowledgments
+
+This project exists to help the community respond to CVE-2025-55182. We acknowledge and thank the following individuals:
+
+- **[Lachlan Davidson](https://github.com/lachlan2k)** ([react2shell.com](https://react2shell.com/)) - For discovering and responsibly disclosing the React Server Components vulnerability (CVE-2025-55182) on November 29th, 2025. The security community owes him gratitude for his diligence in identifying this critical flaw and working with the React and Next.js teams to ensure patches were available. His efforts have helped protect countless applications and users worldwide.
 
 ## License
 
