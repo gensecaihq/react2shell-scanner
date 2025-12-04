@@ -1,6 +1,6 @@
 {
   "name": "react2shell-guard",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Security scanner for CVE-2025-55182 - Critical React Server Components RCE vulnerability. Scan lockfiles, SBOMs, Docker images, and live URLs.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -48,7 +48,7 @@
     "devsecops"
   ],
   "author": "gensecai-dev",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/gensecaihq/react2shell-scanner.git"

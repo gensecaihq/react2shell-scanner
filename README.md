@@ -637,4 +637,4 @@ npm run dev
 
 ## License
 
-Apache-2.0
+MIT
