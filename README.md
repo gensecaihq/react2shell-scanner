@@ -10,6 +10,10 @@ Security scanner for **CVE-2025-55182** - a critical (CVSS 10.0) unauthenticated
 >
 > **Use at your own risk and responsibility.** Always verify findings manually and follow your organization's security policies. If you discover any issues, bugs, or have suggestions, please [contribute back](CONTRIBUTING.md) to help improve the project for everyone.
 
+> **🤝 CONTRIBUTORS WANTED**
+>
+> This project is **actively looking for testers and contributors**! Whether you want to report bugs, suggest features, improve documentation, or submit code - all contributions are welcome. Check out our [Contributing Guide](CONTRIBUTING.md) to get started.
+
 ## Quick Start
 
 ### 1. Instant Scan (No Installation)
