@@ -4,5 +4,5 @@
  */
 
 export { createExpressMiddleware, type ExpressMiddlewareOptions } from './express.js';
-export { createNextMiddleware, type NextMiddlewareOptions } from './nextjs.js';
+export { createNextMiddleware, withReact2ShellGuard, type NextMiddlewareOptions } from './nextjs.js';
 export { detectExploitPatterns, type DetectionResult } from './detector.js';

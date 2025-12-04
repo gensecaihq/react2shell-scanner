@@ -36,6 +36,14 @@ function formatTextOutput(result: ScanResult): void {
 
   if (result.projects.length === 0) {
     console.log(`${colors.yellow}No projects found to scan.${colors.reset}`);
+    if (result.errors.length > 0) {
+      console.log();
+      console.log(`${colors.yellow}Errors:${colors.reset}`);
+      for (const error of result.errors) {
+        console.log(`  - ${error}`);
+      }
+    }
+    console.log();
     return;
   }
 
@@ -92,7 +100,7 @@ function formatTextOutput(result: ScanResult): void {
 program
   .name('react2shell-guard')
   .description('Security scanner for CVE-2025-55182 - React Server Components RCE vulnerability')
-  .version('1.0.2');
+  .version('1.0.3');
 
 program
   .command('mcp-server')

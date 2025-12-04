@@ -1,9 +1,19 @@
 {
   "name": "react2shell-guard",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Security scanner for CVE-2025-55182 - Critical React Server Components RCE vulnerability. Scan lockfiles, SBOMs, Docker images, and live URLs.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./middleware": {
+      "types": "./dist/middleware/index.d.ts",
+      "import": "./dist/middleware/index.js"
+    }
+  },
   "bin": {
     "react2shell-guard": "dist/cli/index.js",
     "react2shell-guard-mcp": "dist/mcp/server.js"

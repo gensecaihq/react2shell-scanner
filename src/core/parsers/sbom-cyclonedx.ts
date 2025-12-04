@@ -98,7 +98,8 @@ export function parseCycloneDXFile(filePath: string): ParsedLockfile | null {
 
     return { packages };
   } catch (error) {
-    console.error(`Failed to parse SBOM file ${filePath}:`, error);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Failed to parse SBOM file ${filePath}: ${message}`);
     return null;
   }
 }
