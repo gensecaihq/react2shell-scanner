@@ -30,14 +30,15 @@ jobs:
         run: npm install -g react2shell-guard
 
       - name: Scan for CVE-2025-55182
-        run: react2shell-guard . --sarif > results.sarif
+        # Note: --ignore-path excludes intentionally vulnerable test fixtures
+        run: react2shell-guard . --ignore-path "examples/**" --sarif > results.sarif
         continue-on-error: true
 
       - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: results.sarif
           category: react2shell-guard
 
       - name: Fail if vulnerable
-        run: react2shell-guard .
+        run: react2shell-guard . --ignore-path "examples/**"
