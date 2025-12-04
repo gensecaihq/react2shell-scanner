@@ -1,0 +1,10 @@
+{
+  "name": "monorepo-example",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

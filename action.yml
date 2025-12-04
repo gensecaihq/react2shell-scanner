@@ -1,0 +1,95 @@
+name: 'React2Shell Guard'
+description: 'Scan for CVE-2025-55182 - React Server Components RCE vulnerability'
+author: 'react2shell-guard'
+branding:
+  icon: 'shield'
+  color: 'red'
+
+inputs:
+  path:
+    description: 'Path to scan (default: current directory)'
+    required: false
+    default: '.'
+  format:
+    description: 'Output format: text, json, or sarif'
+    required: false
+    default: 'text'
+  fail-on-vuln:
+    description: 'Fail the action if vulnerabilities are found'
+    required: false
+    default: 'true'
+  upload-sarif:
+    description: 'Upload SARIF results to GitHub Security tab'
+    required: false
+    default: 'false'
+
+outputs:
+  vulnerable:
+    description: 'Whether vulnerabilities were found (true/false)'
+    value: ${{ steps.scan.outputs.vulnerable }}
+  findings-count:
+    description: 'Number of vulnerable packages found'
+    value: ${{ steps.scan.outputs.findings_count }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install react2shell-guard
+      shell: bash
+      run: npm install -g react2shell-guard@latest || npm install -g ${{ github.action_path }}
+
+    - name: Run scan
+      id: scan
+      shell: bash
+      run: |
+        set +e
+
+        # Determine output format flag
+        FORMAT_FLAG=""
+        if [ "${{ inputs.format }}" = "json" ]; then
+          FORMAT_FLAG="--json"
+        elif [ "${{ inputs.format }}" = "sarif" ]; then
+          FORMAT_FLAG="--sarif"
+        fi
+
+        # Run scan with --no-exit-on-vuln to capture output
+        OUTPUT=$(react2shell-guard "${{ inputs.path }}" $FORMAT_FLAG --no-exit-on-vuln 2>&1)
+        EXIT_CODE=$?
+
+        echo "$OUTPUT"
+
+        # Check if vulnerable
+        if echo "$OUTPUT" | grep -q '"vulnerable": true\|VULNERABLE'; then
+          echo "vulnerable=true" >> $GITHUB_OUTPUT
+          VULN_STATUS="true"
+        else
+          echo "vulnerable=false" >> $GITHUB_OUTPUT
+          VULN_STATUS="false"
+        fi
+
+        # Count findings (approximate from output)
+        FINDINGS=$(echo "$OUTPUT" | grep -c "Upgrade to:" || echo "0")
+        echo "findings_count=$FINDINGS" >> $GITHUB_OUTPUT
+
+        # Save SARIF output if requested
+        if [ "${{ inputs.format }}" = "sarif" ]; then
+          echo "$OUTPUT" > react2shell-results.sarif
+        fi
+
+        # Exit with appropriate code
+        if [ "$VULN_STATUS" = "true" ] && [ "${{ inputs.fail-on-vuln }}" = "true" ]; then
+          exit 1
+        fi
+        exit 0
+
+    - name: Upload SARIF to GitHub Security
+      if: inputs.upload-sarif == 'true' && inputs.format == 'sarif'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: react2shell-results.sarif
+        category: react2shell-guard

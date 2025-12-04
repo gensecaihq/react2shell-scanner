@@ -1,0 +1,39 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2025-12-04T10:00:00Z",
+    "component": {
+      "type": "application",
+      "name": "patched-app",
+      "version": "1.0.0"
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "next",
+      "version": "15.2.6",
+      "purl": "pkg:npm/next@15.2.6"
+    },
+    {
+      "type": "library",
+      "name": "react",
+      "version": "19.1.2",
+      "purl": "pkg:npm/react@19.1.2"
+    },
+    {
+      "type": "library",
+      "name": "react-dom",
+      "version": "19.1.2",
+      "purl": "pkg:npm/react-dom@19.1.2"
+    },
+    {
+      "type": "library",
+      "name": "react-server-dom-webpack",
+      "version": "19.1.2",
+      "purl": "pkg:npm/react-server-dom-webpack@19.1.2"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+# Example workflow showing how to use react2shell-guard in your project
+# Copy this to your repo's .github/workflows/ directory
+
+name: React2Shell Security Scan
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    # Run daily at midnight UTC
+    - cron: '0 0 * * *'
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write  # Required for SARIF upload
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install react2shell-guard
+        run: npm install -g react2shell-guard
+
+      - name: Scan for CVE-2025-55182
+        run: react2shell-guard . --sarif > results.sarif
+        continue-on-error: true
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+          category: react2shell-guard
+
+      - name: Fail if vulnerable
+        run: react2shell-guard .

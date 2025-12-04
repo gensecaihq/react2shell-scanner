@@ -1,0 +1,10 @@
+{
+  "name": "next-patched-example",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "next": "15.2.6",
+    "react": "19.1.2",
+    "react-dom": "19.1.2"
+  }
+}

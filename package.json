@@ -1,0 +1,76 @@
+{
+  "name": "react2shell-guard",
+  "version": "1.0.0",
+  "description": "Security scanner for CVE-2025-55182 - Critical React Server Components RCE vulnerability. Scan lockfiles, SBOMs, Docker images, and live URLs.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "react2shell-guard": "dist/cli/index.js",
+    "react2shell-guard-mcp": "dist/mcp/server.js"
+  },
+  "type": "module",
+  "files": [
+    "dist",
+    "rules",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src --ext .ts",
+    "start": "node dist/cli/index.js",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "security",
+    "vulnerability",
+    "scanner",
+    "react",
+    "nextjs",
+    "rsc",
+    "react-server-components",
+    "cve-2025-55182",
+    "cve",
+    "rce",
+    "mcp",
+    "sbom",
+    "cyclonedx",
+    "sarif",
+    "docker",
+    "container",
+    "vercel",
+    "github-actions",
+    "pre-commit",
+    "security-scanner",
+    "devsecops"
+  ],
+  "author": "gensecai-dev",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gensecaihq/react2shell-scanner.git"
+  },
+  "homepage": "https://github.com/gensecaihq/react2shell-scanner#readme",
+  "bugs": {
+    "url": "https://github.com/gensecaihq/react2shell-scanner/issues"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "fast-glob": "^3.3.2",
+    "semver": "^7.6.3",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.1",
+    "@types/semver": "^7.5.8",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.6"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

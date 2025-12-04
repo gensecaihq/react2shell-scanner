@@ -1,0 +1,8 @@
+{
+  "name": "@example/web",
+  "version": "1.0.0",
+  "dependencies": {
+    "next": "15.2.1",
+    "react": "19.1.0"
+  }
+}
