@@ -14,6 +14,12 @@ Security scanner for **CVE-2025-55182** - a critical (CVSS 10.0) unauthenticated
 >
 > This project is **actively looking for testers and contributors**! Whether you want to report bugs, suggest features, improve documentation, or submit code - all contributions are welcome. Check out our [Contributing Guide](CONTRIBUTING.md) to get started.
 
+## Acknowledgments
+
+This project exists to help the community respond to CVE-2025-55182. We acknowledge and thank the following individuals:
+
+- **[Lachlan Davidson](https://github.com/lachlan2k)** ([react2shell.com](https://react2shell.com/)) - For discovering and responsibly disclosing the React Server Components vulnerability (CVE-2025-55182) on November 29th, 2025. The security community owes him gratitude for his diligence in identifying this critical flaw and working with the React and Next.js teams to ensure patches were available. His efforts have helped protect countless applications and users worldwide.
+
 ## Quick Start
 
 ### 1. Instant Scan (No Installation)
@@ -676,12 +682,6 @@ npm test
 # Run in development mode
 npm run dev
 ```
-
-## Acknowledgments
-
-This project exists to help the community respond to CVE-2025-55182. We acknowledge and thank the following individuals:
-
-- **[Lachlan Davidson](https://github.com/lachlan2k)** ([react2shell.com](https://react2shell.com/)) - For discovering and responsibly disclosing the React Server Components vulnerability (CVE-2025-55182) on November 29th, 2025. The security community owes him gratitude for his diligence in identifying this critical flaw and working with the React and Next.js teams to ensure patches were available. His efforts have helped protect countless applications and users worldwide.
 
 ## License
 
