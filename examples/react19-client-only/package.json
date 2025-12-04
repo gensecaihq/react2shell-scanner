@@ -1,0 +1,14 @@
+{
+  "name": "react19-client-only-example",
+  "version": "1.0.0",
+  "private": true,
+  "description": "React 19 client-side only app - NOT vulnerable to CVE-2025-55182",
+  "dependencies": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "vite": "6.3.5",
+    "@vitejs/plugin-react": "4.4.1"
+  }
+}

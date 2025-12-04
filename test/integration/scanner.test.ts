@@ -57,13 +57,26 @@ describe('Scanner integration tests', () => {
   });
 
   describe('client-only project detection', () => {
-    it('should pass client-only React project', () => {
+    it('should pass client-only React 18 project', () => {
       const result = scan({ path: join(examplesDir, 'react-client-only') });
 
       expect(result.vulnerable).toBe(false);
       expect(result.projects).toHaveLength(1);
       expect(result.projects[0].vulnerable).toBe(false);
       expect(result.projects[0].framework.type).toBe('react-client-only');
+    });
+
+    it('should NOT flag React 19 client-only project (critical false positive check)', () => {
+      // React 19 client-side apps without RSC packages should NOT be flagged
+      // This is a critical test to prevent false positives
+      const result = scan({ path: join(examplesDir, 'react19-client-only') });
+
+      expect(result.vulnerable).toBe(false);
+      expect(result.projects).toHaveLength(1);
+      expect(result.projects[0].vulnerable).toBe(false);
+      expect(result.projects[0].findings).toHaveLength(0);
+      // Verify it has React 19 but is still safe
+      expect(result.projects[0].name).toBe('react19-client-only-example');
     });
   });
 
