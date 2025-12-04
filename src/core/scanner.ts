@@ -27,6 +27,16 @@ export interface SbomScanOptions {
 }
 
 /**
+ * Normalize ignore patterns - handle glob patterns like "examples/**" -> "examples"
+ */
+function normalizeIgnorePatterns(patterns: string[]): string[] {
+  return patterns.map(p => {
+    // Strip glob suffixes: examples/** -> examples, foo/* -> foo, bar* -> bar
+    return p.replace(/\/?\*+$/, '').replace(/\/$/, '');
+  });
+}
+
+/**
  * Find all package.json files in a directory (for monorepo support)
  */
 function findPackageJsons(rootDir: string, ignorePaths: string[] = []): string[] {
@@ -41,7 +51,9 @@ function findPackageJsons(rootDir: string, ignorePaths: string[] = []): string[]
     'coverage',
   ];
 
-  const ignoreSet = new Set([...defaultIgnore, ...ignorePaths]);
+  // Normalize user-provided patterns and combine with defaults
+  const normalizedUserIgnore = normalizeIgnorePatterns(ignorePaths);
+  const ignoreSet = new Set([...defaultIgnore, ...normalizedUserIgnore]);
 
   function walk(dir: string): void {
     const packageJsonPath = join(dir, 'package.json');

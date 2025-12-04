@@ -145,7 +145,7 @@ export function generateSarif(scanResult: ScanResult): SarifReport {
         tool: {
           driver: {
             name: 'react2shell-guard',
-            version: '0.1.0',
+            version: '1.0.2',
             informationUri: 'https://github.com/gensecaihq/react2shell-scanner',
             rules,
           },

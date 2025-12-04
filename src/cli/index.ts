@@ -92,7 +92,7 @@ function formatTextOutput(result: ScanResult): void {
 program
   .name('react2shell-guard')
   .description('Security scanner for CVE-2025-55182 - React Server Components RCE vulnerability')
-  .version('1.0.0');
+  .version('1.0.2');
 
 program
   .command('mcp-server')
@@ -650,7 +650,7 @@ program
   });
 
 program
-  .command('scan')
+  .command('scan', { isDefault: true })
   .description('Scan a directory for CVE-2025-55182 vulnerabilities')
   .argument('[path]', 'Path to scan', '.')
   .option('--json', 'Output results as JSON')
@@ -693,53 +693,6 @@ program
     }
 
     // Exit with code 1 if vulnerabilities found (unless --no-exit-on-vuln)
-    if (result.vulnerable && options.exitOnVuln !== false) {
-      process.exit(1);
-    }
-  });
-
-// Default command: scan current directory
-program
-  .argument('[path]', 'Path to scan (shorthand for "scan" command)', '.')
-  .option('--json', 'Output results as JSON')
-  .option('--sarif', 'Output results as SARIF 2.1.0 (for GitHub Security tab)')
-  .option('--html <file>', 'Output results as HTML report to file')
-  .option('--no-exit-on-vuln', 'Do not exit with code 1 when vulnerabilities are found')
-  .option('--ignore-path <patterns...>', 'Paths to ignore (glob patterns)')
-  .option('--debug', 'Enable debug output')
-  .action((path: string, options: {
-    json?: boolean;
-    sarif?: boolean;
-    html?: string;
-    exitOnVuln?: boolean;
-    ignorePath?: string[];
-    debug?: boolean;
-  }) => {
-    const absolutePath = resolve(path);
-
-    if (options.debug) {
-      console.log(`Scanning: ${absolutePath}`);
-    }
-
-    const result = scan({
-      path: absolutePath,
-      ignorePaths: options.ignorePath,
-      debug: options.debug,
-    });
-
-    if (options.sarif) {
-      console.log(formatSarif(result));
-    } else if (options.json) {
-      console.log(JSON.stringify(result, null, 2));
-    } else if (options.html) {
-      const htmlOutput = formatHtml(result);
-      writeFileSync(options.html, htmlOutput, 'utf-8');
-      console.log(`${colors.green}✓${colors.reset} HTML report written to ${options.html}`);
-      formatTextOutput(result);
-    } else {
-      formatTextOutput(result);
-    }
-
     if (result.vulnerable && options.exitOnVuln !== false) {
       process.exit(1);
     }
