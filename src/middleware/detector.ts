@@ -43,6 +43,34 @@ const EXPLOIT_PATTERNS = [
     severity: 'high' as const,
     description: 'Potential _prefix property injection',
   },
+  // $@ Chunk reference notation (original PoC technique)
+  {
+    name: 'chunk_reference',
+    pattern: /\$@\d+/,
+    severity: 'high' as const,
+    description: 'RSC Chunk object reference access',
+  },
+  // _formData gadget chain access (original PoC technique)
+  {
+    name: 'formdata_gadget',
+    pattern: /"_formData"\s*:/i,
+    severity: 'high' as const,
+    description: 'FormData gadget chain access',
+  },
+  // Constructor chain traversal (original PoC technique)
+  {
+    name: 'constructor_chain',
+    pattern: /constructor\s*:\s*constructor/i,
+    severity: 'high' as const,
+    description: 'Constructor chain traversal attempt',
+  },
+  // setPrototypeOf manipulation (original PoC technique)
+  {
+    name: 'setprototypeof_access',
+    pattern: /setPrototypeOf/i,
+    severity: 'high' as const,
+    description: 'setPrototypeOf manipulation attempt',
+  },
   // Malformed module references
   {
     name: 'malformed_module_ref',
