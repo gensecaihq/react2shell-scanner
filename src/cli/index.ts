@@ -100,7 +100,7 @@ function formatTextOutput(result: ScanResult): void {
 program
   .name('react2shell-guard')
   .description('Security scanner for CVE-2025-55182 - React Server Components RCE vulnerability')
-  .version('1.0.6');
+  .version('1.0.7');
 
 program
   .command('mcp-server')
