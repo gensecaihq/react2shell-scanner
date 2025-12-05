@@ -29,6 +29,20 @@ const EXPLOIT_PATTERNS = [
     severity: 'high' as const,
     description: 'Prototype pollution attempt',
   },
+  // Object.prototype.then pollution (CVE-2025-55182 exploit technique)
+  {
+    name: 'then_pollution',
+    pattern: /prototype\s*\.\s*then|\.then\s*=/i,
+    severity: 'high' as const,
+    description: 'Object.prototype.then pollution attempt',
+  },
+  // _prefix property injection (CVE-2025-55182 exploit technique)
+  {
+    name: 'prefix_injection',
+    pattern: /"_prefix"\s*:/i,
+    severity: 'high' as const,
+    description: 'Potential _prefix property injection',
+  },
   // Malformed module references
   {
     name: 'malformed_module_ref',
