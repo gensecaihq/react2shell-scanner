@@ -40,7 +40,7 @@ interface MCPToolDefinition {
 // Server info
 const SERVER_INFO = {
   name: 'react2shell-guard',
-  version: '1.0.8',
+  version: '1.0.9',
   description: 'Security scanner for CVE-2025-55182 - React Server Components RCE vulnerability',
 };
 

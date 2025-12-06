@@ -43,13 +43,43 @@ const DEFAULT_TIMEOUT = 10000;
 const DEFAULT_THREADS = 10;
 
 /**
- * RSC Flight protocol error patterns
+ * RSC Flight protocol error/vulnerability patterns
  */
 const VULNERABILITY_PATTERNS = [
   /^[0-9]+:E\{/m,
   /"digest"\s*:\s*"[^"]*RSC/i,
   /ReactServerComponentsError|RSCError/i,
   /text\/x-component.*error/i,
+  /NEXT_REDIRECT/i,
+  /Server Actions/i,
+  /createActionProxy/i,
+  /^[0-9]+:I\[/m, // RSC module reference
+  /^[0-9]+:S/m, // RSC symbol
+];
+
+/**
+ * Common Server Action endpoints to probe
+ */
+const PROBE_ENDPOINTS = [
+  '', // root
+  '/api',
+  '/api/action',
+  '/actions',
+];
+
+/**
+ * Vulnerable Next.js version patterns (from page source)
+ * Handles both regular quotes and HTML-encoded &quot;
+ */
+const VULNERABLE_VERSION_PATTERNS = [
+  // Match "next": "16.0.x" (with HTML entities or regular quotes)
+  /(?:"|&quot;)next(?:"|&quot;)[^"]*(?:"|&quot;)(?:15\.0\.[0-2]|15\.1\.0|16\.0\.[0-6])(?:"|&quot;)/i,
+  /next[@\/](?:15\.0\.[0-2]|15\.1\.0|16\.0\.[0-6])/i,
+  // Match "react": "19.x.x" for vulnerable versions
+  /(?:"|&quot;)react(?:"|&quot;)[^"]*(?:"|&quot;)19\.(?:0\.0|1\.[0-1]|2\.[0-1])(?:"|&quot;)/i,
+  /react[@\/]19\.(?:0\.0|1\.[0-1]|2\.[0-1])/i,
+  // Match react-server-dom packages
+  /react-server-dom-(?:webpack|turbopack|parcel)[^"]*(?:"|&quot;)19\./i,
 ];
 
 function createProbePayload(): { body: string; contentType: string } {
@@ -74,6 +104,129 @@ function createProbePayload(): { body: string; contentType: string } {
   };
 }
 
+/**
+ * Check if response indicates RSC/Server Actions capability
+ */
+function checkRscHeaders(headers: Headers): boolean {
+  const contentType = headers.get('content-type') || '';
+  return (
+    contentType.includes('text/x-component') ||
+    contentType.includes('application/x-component') ||
+    headers.has('x-action-revalidated') ||
+    headers.has('x-action-redirect')
+  );
+}
+
+/**
+ * Probe a single endpoint for vulnerability
+ */
+async function probeEndpoint(
+  baseUrl: string,
+  endpoint: string,
+  options: {
+    timeout: number;
+    skipSslVerify: boolean;
+    headers: Record<string, string>;
+  }
+): Promise<{ vulnerable: boolean; statusCode: number; responseText: string; matchedPattern?: string }> {
+  const targetUrl = baseUrl.replace(/\/$/, '') + endpoint;
+  const probe = createProbePayload();
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), options.timeout);
+
+  const requestHeaders: Record<string, string> = {
+    'Content-Type': probe.contentType,
+    'User-Agent': 'react2shell-guard/1.0 (Security Scanner)',
+    'Accept': 'text/x-component, */*',
+    'Next-Action': 'test-probe',
+    'RSC': '1',
+    ...options.headers,
+  };
+
+  const fetchOptions: RequestInit = {
+    method: 'POST',
+    headers: requestHeaders,
+    body: probe.body,
+    signal: controller.signal,
+  };
+
+  if (options.skipSslVerify && typeof process !== 'undefined') {
+    // @ts-expect-error - Node.js specific option
+    fetchOptions.dispatcher = new (await import('undici')).Agent({
+      connect: { rejectUnauthorized: false },
+    });
+  }
+
+  const response = await fetch(targetUrl, fetchOptions);
+  clearTimeout(timeoutId);
+
+  const responseText = await response.text();
+  const hasRscHeaders = checkRscHeaders(response.headers);
+
+  let matchedPattern: string | undefined;
+
+  // Check for vulnerability patterns in response
+  const patternMatch = VULNERABILITY_PATTERNS.some((pattern) => {
+    const matches = pattern.test(responseText);
+    if (matches) {
+      matchedPattern = pattern.source;
+    }
+    return matches;
+  });
+
+  // Vulnerable if:
+  // 1. Status 500 with RSC error patterns, OR
+  // 2. RSC headers present with error patterns, OR
+  // 3. Response contains RSC Flight protocol markers
+  const isVulnerable =
+    (response.status === 500 && patternMatch) ||
+    (hasRscHeaders && patternMatch) ||
+    (response.status >= 200 && response.status < 500 && patternMatch);
+
+  return {
+    vulnerable: isVulnerable,
+    statusCode: response.status,
+    responseText,
+    matchedPattern,
+  };
+}
+
+/**
+ * Check page source for vulnerable version indicators
+ */
+async function checkVersionVulnerability(
+  targetUrl: string,
+  timeout: number
+): Promise<{ vulnerable: boolean; matchedPattern?: string }> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    const response = await fetch(targetUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'react2shell-guard/1.0 (Security Scanner)',
+        'Accept': 'text/html,*/*',
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    const html = await response.text();
+
+    for (const pattern of VULNERABLE_VERSION_PATTERNS) {
+      if (pattern.test(html)) {
+        return { vulnerable: true, matchedPattern: pattern.source };
+      }
+    }
+
+    return { vulnerable: false };
+  } catch {
+    return { vulnerable: false };
+  }
+}
+
 export async function scanUrl(
   url: string,
   options: UrlScanOptions = {}
@@ -89,57 +242,55 @@ export async function scanUrl(
   }
 
   try {
-    const probe = createProbePayload();
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-    const requestHeaders: Record<string, string> = {
-      'Content-Type': probe.contentType,
-      'User-Agent': 'react2shell-guard/1.0 (Security Scanner)',
-      'Accept': '*/*',
-      ...headers,
-    };
-
-    requestHeaders['Next-Action'] = 'test';
-
-    const fetchOptions: RequestInit = {
-      method: 'POST',
-      headers: requestHeaders,
-      body: probe.body,
-      signal: controller.signal,
-    };
-
-    if (skipSslVerify && typeof process !== 'undefined') {
-      // @ts-expect-error - Node.js specific option
-      fetchOptions.dispatcher = new (await import('undici')).Agent({
-        connect: { rejectUnauthorized: false },
-      });
+    // First, check page source for vulnerable version indicators
+    const versionCheck = await checkVersionVulnerability(targetUrl, timeout);
+    if (versionCheck.vulnerable) {
+      return {
+        url: targetUrl,
+        vulnerable: true,
+        statusCode: 200,
+        responseTime: Date.now() - startTime,
+        signature: 'version-detection: ' + versionCheck.matchedPattern,
+        timestamp,
+      };
     }
 
-    const response = await fetch(targetUrl, fetchOptions);
-    clearTimeout(timeoutId);
+    // Try multiple endpoints with exploit probe
+    for (const endpoint of PROBE_ENDPOINTS) {
+      try {
+        const result = await probeEndpoint(targetUrl, endpoint, {
+          timeout,
+          skipSslVerify,
+          headers,
+        });
 
-    const responseTime = Date.now() - startTime;
-    const responseText = await response.text();
-
-    let matchedPattern: string | undefined;
-    const isVulnerable =
-      response.status === 500 &&
-      VULNERABILITY_PATTERNS.some((pattern) => {
-        const matches = pattern.test(responseText);
-        if (matches) {
-          matchedPattern = pattern.source;
+        if (result.vulnerable) {
+          return {
+            url: targetUrl + endpoint,
+            vulnerable: true,
+            statusCode: result.statusCode,
+            responseTime: Date.now() - startTime,
+            signature: result.matchedPattern,
+            timestamp,
+          };
         }
-        return matches;
-      });
+      } catch {
+        // Continue to next endpoint
+      }
+    }
+
+    // No vulnerable endpoint found - return result for root
+    const finalProbe = await probeEndpoint(targetUrl, '', {
+      timeout,
+      skipSslVerify,
+      headers,
+    });
 
     return {
       url: targetUrl,
-      vulnerable: isVulnerable,
-      statusCode: response.status,
-      responseTime,
-      signature: matchedPattern,
+      vulnerable: false,
+      statusCode: finalProbe.statusCode,
+      responseTime: Date.now() - startTime,
       timestamp,
     };
   } catch (error) {
