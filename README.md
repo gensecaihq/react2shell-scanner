@@ -377,6 +377,8 @@ Upgrade affected packages to patched versions immediately.
 
 ## GitHub Actions Integration
 
+> **Note:** We actively release new versions with improved detection patterns and fixes. The examples below always install the latest version. For explicit version control, use `react2shell-guard@latest` or check [npm](https://www.npmjs.com/package/react2shell-guard) for the current version.
+
 ### Basic Usage
 
 ```yaml

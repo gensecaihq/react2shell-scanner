@@ -87,6 +87,7 @@ function formatTextOutput(result: ScanResult): void {
     console.log(`${colors.green}${colors.bold}SECURE${colors.reset} - No CVE-2025-55182 vulnerabilities found.`);
   }
   console.log();
+  console.log(`${colors.cyan}Tip: We actively release updates. Run 'npx react2shell-guard@latest' for the newest version.${colors.reset}`);
 
   if (result.errors.length > 0) {
     console.log(`${colors.yellow}Warnings:${colors.reset}`);
