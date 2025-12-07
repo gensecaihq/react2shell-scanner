@@ -1,5 +1,5 @@
 name: 'React2Shell Guard - CVE-2025-55182 Scanner'
-description: 'Security scanner for CVE-2025-55182 - Critical RCE vulnerability in React Server Components. Scans lockfiles, SBOMs, and detects vulnerable Next.js/React packages.'
+description: 'Scan for CVE-2025-55182 - Critical RCE in React Server Components. Detects vulnerable Next.js/React packages.'
 author: 'GenSecAI'
 
 branding:
