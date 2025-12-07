@@ -23,6 +23,7 @@ jobs:
         with:
           path: '.'
           fail-on-vuln: true
+          ignore-paths: 'examples/**'  # Ignore test fixtures in this repo
 
   # ===========================================
   # Full Featured - All options enabled
@@ -57,7 +58,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Generate SBOM (if needed)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate SBOM
         run: npx @cyclonedx/cyclonedx-npm --output-file sbom.json
 
       - name: Scan SBOM for vulnerabilities
@@ -75,6 +84,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install and build
+        run: npm ci && npm run build
 
       - name: Build Docker image
         run: docker build -t myapp:latest .
@@ -107,7 +124,7 @@ jobs:
         run: npm install -g react2shell-guard@latest
 
       - name: Run scan with SARIF output
-        run: react2shell-guard . --sarif > results.sarif
+        run: react2shell-guard . --sarif --ignore-path examples > results.sarif
         continue-on-error: true
 
       - name: Upload SARIF to GitHub Security
@@ -117,7 +134,7 @@ jobs:
           category: react2shell-guard
 
       - name: Fail if vulnerable
-        run: react2shell-guard .
+        run: react2shell-guard . --ignore-path examples
 
   # ===========================================
   # Conditional Fix PR - Auto-create fix PRs
@@ -144,7 +161,7 @@ jobs:
       - name: Check for vulnerabilities
         id: scan
         run: |
-          if react2shell-guard . --json | grep -q '"vulnerable": true'; then
+          if react2shell-guard . --json --ignore-path examples | grep -q '"vulnerable": true'; then
             echo "vulnerable=true" >> $GITHUB_OUTPUT
           else
             echo "vulnerable=false" >> $GITHUB_OUTPUT
