@@ -1,7 +1,7 @@
-# Example workflow showing how to use react2shell-guard in your project
-# Copy this to your repo's .github/workflows/ directory
+# Example workflows showing how to use react2shell-guard in your project
+# Copy the relevant job to your repo's .github/workflows/ directory
 
-name: React2Shell Security Scan
+name: React2Shell Security Scan Examples
 
 on:
   push:
@@ -12,11 +12,91 @@ on:
     - cron: '0 0 * * *'
 
 jobs:
-  security-scan:
+  # ===========================================
+  # Basic Usage - Simplest setup
+  # ===========================================
+  basic-scan:
+    name: Basic Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for CVE-2025-55182
+        uses: gensecaihq/react2shell-scanner@v1
+        with:
+          path: '.'
+          fail-on-vuln: true
+
+  # ===========================================
+  # Full Featured - All options enabled
+  # ===========================================
+  full-featured-scan:
+    name: Full Featured Scan
     runs-on: ubuntu-latest
     permissions:
       security-events: write  # Required for SARIF upload
       contents: read
+      pull-requests: write    # Required for PR comments
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for CVE-2025-55182
+        uses: gensecaihq/react2shell-scanner@v1
+        with:
+          path: '.'
+          format: sarif
+          fail-on-vuln: true
+          upload-sarif: true
+          add-pr-comment: true
+          ignore-paths: 'examples/**,test/fixtures/**'
+
+  # ===========================================
+  # SBOM Scan - Scan CycloneDX SBOM files
+  # ===========================================
+  sbom-scan:
+    name: SBOM Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate SBOM (if needed)
+        run: npx @cyclonedx/cyclonedx-npm --output-file sbom.json
+
+      - name: Scan SBOM for vulnerabilities
+        uses: gensecaihq/react2shell-scanner@v1
+        with:
+          scan-type: sbom
+          sbom-file: sbom.json
+          fail-on-vuln: true
+
+  # ===========================================
+  # Container Scan - Scan Docker images
+  # ===========================================
+  container-scan:
+    name: Container Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t myapp:latest .
+
+      - name: Scan container for vulnerabilities
+        uses: gensecaihq/react2shell-scanner@v1
+        with:
+          scan-type: container
+          container-image: myapp:latest
+          fail-on-vuln: true
+
+  # ===========================================
+  # Manual CLI Usage - Without the action
+  # ===========================================
+  manual-cli:
+    name: Manual CLI Usage
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
 
     steps:
       - uses: actions/checkout@v4
@@ -27,18 +107,54 @@ jobs:
           node-version: '20'
 
       - name: Install react2shell-guard
-        run: npm install -g react2shell-guard
+        run: npm install -g react2shell-guard@latest
 
-      - name: Scan for CVE-2025-55182
-        # Note: --ignore-path excludes intentionally vulnerable test fixtures
-        run: react2shell-guard . --ignore-path "examples/**" --sarif > results.sarif
+      - name: Run scan with SARIF output
+        run: react2shell-guard . --sarif > results.sarif
         continue-on-error: true
 
       - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: results.sarif
           category: react2shell-guard
 
       - name: Fail if vulnerable
-        run: react2shell-guard . --ignore-path "examples/**"
+        run: react2shell-guard .
+
+  # ===========================================
+  # Conditional Fix PR - Auto-create fix PRs
+  # ===========================================
+  auto-fix:
+    name: Auto-Fix Vulnerabilities
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'  # Only on scheduled runs
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install react2shell-guard
+        run: npm install -g react2shell-guard@latest
+
+      - name: Check for vulnerabilities
+        id: scan
+        run: |
+          if react2shell-guard . --json | grep -q '"vulnerable": true'; then
+            echo "vulnerable=true" >> $GITHUB_OUTPUT
+          else
+            echo "vulnerable=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create fix PR
+        if: steps.scan.outputs.vulnerable == 'true'
+        run: react2shell-guard create-pr .
+        env:
+          GH_TOKEN: ${{ github.token }}

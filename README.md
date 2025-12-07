@@ -377,9 +377,11 @@ Upgrade affected packages to patched versions immediately.
 
 ## GitHub Actions Integration
 
-> **Note:** We actively release new versions with improved detection patterns and fixes. The examples below always install the latest version. For explicit version control, use `react2shell-guard@latest` or check [npm](https://www.npmjs.com/package/react2shell-guard) for the current version.
+> **Note:** We actively release new versions with improved detection patterns and fixes. Use `@v1` for stable releases or `@latest` for the newest version.
 
-### Basic Usage
+### GitHub Marketplace Action
+
+The easiest way to integrate is using our official GitHub Action:
 
 ```yaml
 name: Security Scan
@@ -392,19 +394,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Scan for CVE-2025-55182
+        uses: gensecaihq/react2shell-scanner@v1
         with:
-          node-version: '20'
-
-      - name: Install react2shell-guard
-        run: npm install -g react2shell-guard
-
-      - name: Scan for vulnerabilities
-        run: react2shell-guard .
+          path: '.'
+          fail-on-vuln: true
 ```
 
-### With SARIF Upload
+### Full-Featured Setup (SARIF + PR Comments)
 
 ```yaml
 name: Security Scan
@@ -415,30 +412,78 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     permissions:
-      security-events: write
+      security-events: write    # For SARIF upload
+      pull-requests: write      # For PR comments
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Scan for CVE-2025-55182
+        uses: gensecaihq/react2shell-scanner@v1
         with:
-          node-version: '20'
+          path: '.'
+          format: sarif
+          fail-on-vuln: true
+          upload-sarif: true        # Upload to GitHub Security tab
+          add-pr-comment: true      # Comment on PRs with results
+          ignore-paths: 'examples/**,test/fixtures/**'
+```
 
-      - name: Install react2shell-guard
-        run: npm install -g react2shell-guard
+### Action Inputs
 
-      - name: Scan and generate SARIF
-        run: react2shell-guard . --sarif > results.sarif
-        continue-on-error: true
+| Input | Description | Default |
+|-------|-------------|---------|
+| `path` | Path to scan | `.` |
+| `scan-type` | Type of scan: `repo`, `sbom`, `container` | `repo` |
+| `format` | Output format: `text`, `json`, `sarif` | `text` |
+| `fail-on-vuln` | Fail if vulnerabilities found | `true` |
+| `upload-sarif` | Upload SARIF to GitHub Security | `false` |
+| `add-pr-comment` | Add PR comment with results | `false` |
+| `ignore-paths` | Comma-separated paths to ignore | `''` |
+| `sbom-file` | SBOM file path (when scan-type is sbom) | `''` |
+| `container-image` | Docker image (when scan-type is container) | `''` |
 
-      - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: results.sarif
+### Action Outputs
 
-      - name: Fail on vulnerabilities
-        run: react2shell-guard .
+| Output | Description |
+|--------|-------------|
+| `vulnerable` | Whether vulnerabilities were found (`true`/`false`) |
+| `findings-count` | Number of vulnerable packages |
+| `scan-result` | Full scan result (JSON format) |
+| `sarif-file` | Path to SARIF output file |
+
+### Scan Container Images
+
+```yaml
+- name: Scan Docker image
+  uses: gensecaihq/react2shell-scanner@v1
+  with:
+    scan-type: container
+    container-image: myapp:latest
+```
+
+### Scan SBOM Files
+
+```yaml
+- name: Scan SBOM
+  uses: gensecaihq/react2shell-scanner@v1
+  with:
+    scan-type: sbom
+    sbom-file: sbom.json
+```
+
+### Manual CLI Usage
+
+If you prefer to use the CLI directly:
+
+```yaml
+- name: Setup Node.js
+  uses: actions/setup-node@v4
+  with:
+    node-version: '20'
+
+- name: Scan for vulnerabilities
+  run: npx react2shell-guard@latest .
 ```
 
 ## Supported Package Managers

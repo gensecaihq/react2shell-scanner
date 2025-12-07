@@ -1,6 +1,7 @@
-name: 'React2Shell Guard'
-description: 'Scan for CVE-2025-55182 - React Server Components RCE vulnerability'
-author: 'react2shell-guard'
+name: 'React2Shell Guard - CVE-2025-55182 Scanner'
+description: 'Security scanner for CVE-2025-55182 - Critical RCE vulnerability in React Server Components. Scans lockfiles, SBOMs, and detects vulnerable Next.js/React packages.'
+author: 'GenSecAI'
+
 branding:
   icon: 'shield'
   color: 'red'
@@ -10,26 +11,68 @@ inputs:
     description: 'Path to scan (default: current directory)'
     required: false
     default: '.'
+
+  scan-type:
+    description: 'Type of scan: repo, sbom, or container'
+    required: false
+    default: 'repo'
+
+  sbom-file:
+    description: 'Path to CycloneDX SBOM file (when scan-type is sbom)'
+    required: false
+    default: ''
+
+  container-image:
+    description: 'Docker image to scan (when scan-type is container)'
+    required: false
+    default: ''
+
   format:
     description: 'Output format: text, json, or sarif'
     required: false
     default: 'text'
+
   fail-on-vuln:
     description: 'Fail the action if vulnerabilities are found'
     required: false
     default: 'true'
+
   upload-sarif:
-    description: 'Upload SARIF results to GitHub Security tab'
+    description: 'Upload SARIF results to GitHub Security tab (requires format: sarif)'
     required: false
     default: 'false'
+
+  ignore-paths:
+    description: 'Comma-separated list of paths to ignore (glob patterns)'
+    required: false
+    default: ''
+
+  add-pr-comment:
+    description: 'Add a comment to the PR with scan results'
+    required: false
+    default: 'false'
+
+  github-token:
+    description: 'GitHub token for PR comments (defaults to github.token)'
+    required: false
+    default: ${{ github.token }}
 
 outputs:
   vulnerable:
     description: 'Whether vulnerabilities were found (true/false)'
     value: ${{ steps.scan.outputs.vulnerable }}
+
   findings-count:
     description: 'Number of vulnerable packages found'
     value: ${{ steps.scan.outputs.findings_count }}
+
+  scan-result:
+    description: 'Full scan result in JSON format'
+    value: ${{ steps.scan.outputs.scan_result }}
+
+  sarif-file:
+    description: 'Path to SARIF output file (if format is sarif)'
+    value: ${{ steps.scan.outputs.sarif_file }}
 
 runs:
   using: 'composite'
@@ -41,55 +84,219 @@ runs:
 
     - name: Install react2shell-guard
       shell: bash
-      run: npm install -g react2shell-guard@latest || npm install -g ${{ github.action_path }}
+      run: |
+        echo "::group::Installing react2shell-guard"
+        npm install -g react2shell-guard@latest
+        echo "Installed version: $(react2shell-guard --version)"
+        echo "::endgroup::"
 
-    - name: Run scan
+    - name: Run security scan
       id: scan
       shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_SCAN_TYPE: ${{ inputs.scan-type }}
+        INPUT_SBOM_FILE: ${{ inputs.sbom-file }}
+        INPUT_CONTAINER_IMAGE: ${{ inputs.container-image }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_FAIL_ON_VULN: ${{ inputs.fail-on-vuln }}
+        INPUT_IGNORE_PATHS: ${{ inputs.ignore-paths }}
       run: |
         set +e
 
-        # Determine output format flag
-        FORMAT_FLAG=""
-        if [ "${{ inputs.format }}" = "json" ]; then
-          FORMAT_FLAG="--json"
-        elif [ "${{ inputs.format }}" = "sarif" ]; then
-          FORMAT_FLAG="--sarif"
+        # Build command based on scan type
+        CMD="react2shell-guard"
+
+        case "$INPUT_SCAN_TYPE" in
+          "sbom")
+            if [ -z "$INPUT_SBOM_FILE" ]; then
+              echo "::error::sbom-file is required when scan-type is sbom"
+              exit 1
+            fi
+            CMD="$CMD scan-sbom $INPUT_SBOM_FILE"
+            ;;
+          "container")
+            if [ -z "$INPUT_CONTAINER_IMAGE" ]; then
+              echo "::error::container-image is required when scan-type is container"
+              exit 1
+            fi
+            CMD="$CMD scan-image $INPUT_CONTAINER_IMAGE"
+            ;;
+          *)
+            CMD="$CMD scan $INPUT_PATH"
+            ;;
+        esac
+
+        # Add format flag
+        if [ "$INPUT_FORMAT" = "json" ]; then
+          CMD="$CMD --json"
+        elif [ "$INPUT_FORMAT" = "sarif" ]; then
+          CMD="$CMD --sarif"
         fi
 
-        # Run scan with --no-exit-on-vuln to capture output
-        OUTPUT=$(react2shell-guard "${{ inputs.path }}" $FORMAT_FLAG --no-exit-on-vuln 2>&1)
-        EXIT_CODE=$?
+        # Add ignore paths
+        if [ -n "$INPUT_IGNORE_PATHS" ]; then
+          IFS=',' read -ra PATHS <<< "$INPUT_IGNORE_PATHS"
+          for path in "${PATHS[@]}"; do
+            CMD="$CMD --ignore-path $(echo $path | xargs)"
+          done
+        fi
+
+        # Always use --no-exit-on-vuln to capture output
+        CMD="$CMD --no-exit-on-vuln"
+
+        echo "::group::Running scan"
+        echo "Command: $CMD"
+
+        # Run scan and capture output
+        OUTPUT=$($CMD 2>&1)
+        SCAN_EXIT=$?
 
         echo "$OUTPUT"
+        echo "::endgroup::"
 
-        # Check if vulnerable
-        if echo "$OUTPUT" | grep -q '"vulnerable": true\|VULNERABLE'; then
-          echo "vulnerable=true" >> $GITHUB_OUTPUT
-          VULN_STATUS="true"
+        # Determine vulnerability status
+        VULNERABLE="false"
+        FINDINGS_COUNT="0"
+
+        if echo "$OUTPUT" | grep -qE '"vulnerable":\s*true|VULNERABLE'; then
+          VULNERABLE="true"
+          # Count findings from output
+          FINDINGS_COUNT=$(echo "$OUTPUT" | grep -c "Upgrade to:" || echo "0")
+        fi
+
+        # Set outputs
+        echo "vulnerable=$VULNERABLE" >> $GITHUB_OUTPUT
+        echo "findings_count=$FINDINGS_COUNT" >> $GITHUB_OUTPUT
+
+        # Save JSON result for output
+        if [ "$INPUT_FORMAT" = "json" ]; then
+          echo "scan_result<<EOF" >> $GITHUB_OUTPUT
+          echo "$OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi
+
+        # Save SARIF file
+        if [ "$INPUT_FORMAT" = "sarif" ]; then
+          SARIF_FILE="react2shell-guard-results.sarif"
+          echo "$OUTPUT" > "$SARIF_FILE"
+          echo "sarif_file=$SARIF_FILE" >> $GITHUB_OUTPUT
+        fi
+
+        # Create Job Summary
+        echo "## 🛡️ React2Shell Guard Scan Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ "$VULNERABLE" = "true" ]; then
+          echo "### ❌ Vulnerabilities Detected!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**CVE-2025-55182** - Critical RCE vulnerability found in your dependencies." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Vulnerable Packages | $FINDINGS_COUNT |" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | **CRITICAL (CVSS 10.0)** |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Recommended Actions:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Upgrade affected packages to patched versions immediately" >> $GITHUB_STEP_SUMMARY
+          echo "2. Run \`npx react2shell-guard fix\` to auto-fix vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "3. Review the [security advisory](https://react.dev/blog/2025/12/03/critical-security-vulnerability-in-react-server-components)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Add annotations for vulnerabilities
+          echo "::error title=CVE-2025-55182 Vulnerability Detected::Found $FINDINGS_COUNT vulnerable package(s). Upgrade immediately to prevent RCE attacks."
         else
-          echo "vulnerable=false" >> $GITHUB_OUTPUT
-          VULN_STATUS="false"
+          echo "### ✅ No Vulnerabilities Found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Your project is not affected by CVE-2025-55182." >> $GITHUB_STEP_SUMMARY
         fi
 
-        # Count findings (approximate from output)
-        FINDINGS=$(echo "$OUTPUT" | grep -c "Upgrade to:" || echo "0")
-        echo "findings_count=$FINDINGS" >> $GITHUB_OUTPUT
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "*Scanned with [react2shell-guard](https://github.com/gensecaihq/react2shell-scanner) v$(react2shell-guard --version 2>/dev/null | head -1 || echo '1.1.0')*" >> $GITHUB_STEP_SUMMARY
 
-        # Save SARIF output if requested
-        if [ "${{ inputs.format }}" = "sarif" ]; then
-          echo "$OUTPUT" > react2shell-results.sarif
-        fi
-
-        # Exit with appropriate code
-        if [ "$VULN_STATUS" = "true" ] && [ "${{ inputs.fail-on-vuln }}" = "true" ]; then
+        # Exit based on vulnerability status
+        if [ "$VULNERABLE" = "true" ] && [ "$INPUT_FAIL_ON_VULN" = "true" ]; then
           exit 1
         fi
+
         exit 0
 
     - name: Upload SARIF to GitHub Security
-      if: inputs.upload-sarif == 'true' && inputs.format == 'sarif'
+      if: inputs.upload-sarif == 'true' && inputs.format == 'sarif' && always()
       uses: github/codeql-action/upload-sarif@v3
       with:
-        sarif_file: react2shell-results.sarif
+        sarif_file: react2shell-guard-results.sarif
         category: react2shell-guard
+      continue-on-error: true
+
+    - name: Add PR Comment
+      if: inputs.add-pr-comment == 'true' && github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const vulnerable = '${{ steps.scan.outputs.vulnerable }}' === 'true';
+          const findingsCount = '${{ steps.scan.outputs.findings_count }}';
+
+          let body = '';
+
+          if (vulnerable) {
+            body = `## 🚨 Security Alert: CVE-2025-55182 Detected
+
+          **react2shell-guard** found **${findingsCount}** vulnerable package(s) in this PR.
+
+          ### What is CVE-2025-55182?
+          A critical (CVSS 10.0) Remote Code Execution vulnerability in React Server Components that allows unauthenticated attackers to execute arbitrary code.
+
+          ### Affected Packages
+          - \`next\`: 15.0.0-15.0.2, 15.1.0, 16.0.0-16.0.6
+          - \`react-server-dom-webpack\`: 19.0.0-19.1.0
+          - \`react-server-dom-turbopack\`: 19.0.0-19.1.0
+
+          ### How to Fix
+          \`\`\`bash
+          npx react2shell-guard fix
+          \`\`\`
+
+          Or manually upgrade to patched versions.
+
+          ---
+          *🛡️ Scanned by [react2shell-guard](https://github.com/gensecaihq/react2shell-scanner)*`;
+          } else {
+            body = `## ✅ Security Scan Passed
+
+          **react2shell-guard** found no CVE-2025-55182 vulnerabilities in this PR.
+
+          ---
+          *🛡️ Scanned by [react2shell-guard](https://github.com/gensecaihq/react2shell-scanner)*`;
+          }
+
+          // Find existing comment
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number
+          });
+
+          const existingComment = comments.find(c =>
+            c.user.type === 'Bot' &&
+            c.body.includes('react2shell-guard')
+          );
+
+          if (existingComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existingComment.id,
+              body: body
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+          }
+      continue-on-error: true
