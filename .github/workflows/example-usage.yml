@@ -3,13 +3,10 @@
 
 name: React2Shell Security Scan Examples
 
+# This is an EXAMPLE workflow file - users should copy relevant jobs to their repos
+# Trigger manually to test examples
 on:
-  push:
-    branches: [main, master]
-  pull_request:
-  schedule:
-    # Run daily at midnight UTC
-    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   # ===========================================
@@ -114,7 +111,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: results.sarif
           category: react2shell-guard
@@ -128,7 +125,7 @@ jobs:
   auto-fix:
     name: Auto-Fix Vulnerabilities
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule'  # Only on scheduled runs
+    # In your repo, use: if: github.event_name == 'schedule'
     permissions:
       contents: write
       pull-requests: write
