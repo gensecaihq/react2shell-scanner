@@ -2,9 +2,12 @@
  * Parser for yarn.lock files (v1 Classic and v2+ Berry formats)
  */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ParsedLockfile, LockfileEntry } from '../types.js';
+
+// Maximum lockfile size (100MB) to prevent DoS via large file parsing
+const MAX_LOCKFILE_SIZE = 100 * 1024 * 1024;
 
 /**
  * Parse Yarn Classic (v1) lockfile format
@@ -215,6 +218,13 @@ export function parseYarnLockfile(dir: string): ParsedLockfile | null {
   }
 
   try {
+    // Check file size to prevent DoS via large file parsing
+    const stats = statSync(lockfilePath);
+    if (stats.size > MAX_LOCKFILE_SIZE) {
+      console.error(`Lockfile too large (${(stats.size / 1024 / 1024).toFixed(1)}MB > 100MB limit): ${lockfilePath}`);
+      return null;
+    }
+
     const content = readFileSync(lockfilePath, 'utf-8');
 
     const packages = isYarnBerry(content)

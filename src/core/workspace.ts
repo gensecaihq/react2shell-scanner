@@ -109,6 +109,15 @@ function detectLernaWorkspaces(rootPath: string): string[] | null {
 }
 
 /**
+ * Check if a path is safely within the root directory (no path traversal)
+ */
+function isPathWithinRoot(rootPath: string, targetPath: string): boolean {
+  const rel = relative(rootPath, targetPath);
+  // Path is outside root if relative path starts with '..' or is absolute
+  return !rel.startsWith('..') && !rel.startsWith('/');
+}
+
+/**
  * Resolve glob patterns to actual package directories
  */
 function resolvePatterns(rootPath: string, patterns: string[]): string[] {
@@ -117,6 +126,12 @@ function resolvePatterns(rootPath: string, patterns: string[]): string[] {
   for (const pattern of patterns) {
     // Remove negation patterns
     if (pattern.startsWith('!')) {
+      continue;
+    }
+
+    // Block patterns that attempt path traversal
+    if (pattern.includes('..')) {
+      console.error(`Ignoring potentially dangerous workspace pattern: ${pattern}`);
       continue;
     }
 
@@ -136,7 +151,13 @@ function resolvePatterns(rootPath: string, patterns: string[]): string[] {
       });
 
       for (const match of matches) {
-        resolved.push(dirname(match));
+        const pkgDir = dirname(match);
+        // Validate resolved path is within rootPath (prevent path traversal)
+        if (isPathWithinRoot(rootPath, pkgDir)) {
+          resolved.push(pkgDir);
+        } else {
+          console.error(`Ignoring path outside workspace root: ${pkgDir}`);
+        }
       }
     } catch {
       // Ignore glob errors

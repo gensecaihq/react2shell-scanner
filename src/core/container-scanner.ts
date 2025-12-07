@@ -5,7 +5,7 @@
  * by extracting and analyzing package manifests from image layers.
  */
 
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -14,7 +14,27 @@ import { matchLockfileAgainstRule } from './matcher.js';
 import { loadRules, getPrimaryRule } from './rules.js';
 import type { ScanResult, ProjectResult, Finding, PackageJson, ParsedLockfile, LockfileEntry } from './types.js';
 
-const execAsync = promisify(exec);
+// Use execFile instead of exec to prevent shell injection
+const execFileAsync = promisify(execFile);
+
+/**
+ * Validate Docker image name to prevent command injection
+ * Valid format: [registry/][namespace/]name[:tag][@digest]
+ */
+function validateImageName(image: string): boolean {
+  // Docker image name regex - allows alphanumeric, dots, dashes, underscores, slashes, colons, and @
+  // Must start with alphanumeric and cannot contain shell metacharacters
+  const validImagePattern = /^[a-zA-Z0-9][a-zA-Z0-9._\-/:@]*$/;
+
+  // Block shell metacharacters
+  const dangerousChars = /[;&|`$(){}[\]<>\\!#'"*?\n\r\t]/;
+
+  if (dangerousChars.test(image)) {
+    return false;
+  }
+
+  return validImagePattern.test(image) && image.length < 256;
+}
 
 export interface ContainerScanOptions {
   timeout?: number;
@@ -45,7 +65,7 @@ const DEFAULT_TIMEOUT = 120000; // 2 minutes
  */
 export async function checkDockerAvailable(): Promise<boolean> {
   try {
-    await execAsync('docker --version', { timeout: 5000 });
+    await execFileAsync('docker', ['--version'], { timeout: 5000 });
     return true;
   } catch {
     return false;
@@ -64,8 +84,8 @@ async function pullImageIfNeeded(
   }
 
   try {
-    // Check if image exists locally
-    await execAsync('docker image inspect ' + image, { timeout: 10000 });
+    // Check if image exists locally (using execFileAsync with array args to prevent injection)
+    await execFileAsync('docker', ['image', 'inspect', image], { timeout: 10000 });
     if (options.debug) {
       console.error('[DEBUG] Image found locally: ' + image);
     }
@@ -75,7 +95,7 @@ async function pullImageIfNeeded(
       console.error('[DEBUG] Pulling image: ' + image);
     }
     const timeout = options.timeout || DEFAULT_TIMEOUT;
-    await execAsync('docker pull ' + image, { timeout });
+    await execFileAsync('docker', ['pull', image], { timeout });
   }
 }
 
@@ -84,8 +104,10 @@ async function pullImageIfNeeded(
  */
 async function getImageInfo(image: string): Promise<ImageInfo | null> {
   try {
-    const { stdout } = await execAsync(
-      'docker image inspect ' + image + ' --format "{{json .}}"',
+    // Use execFileAsync with array args to prevent injection
+    const { stdout } = await execFileAsync(
+      'docker',
+      ['image', 'inspect', image, '--format', '{{json .}}'],
       { timeout: 10000 }
     );
     const info = JSON.parse(stdout.trim());
@@ -113,17 +135,17 @@ async function exportAndExtractImage(
   const tarPath = path.join(tempDir, 'image.tar');
   const extractDir = path.join(tempDir, 'extracted');
 
-  // Export image to tar
+  // Export image to tar (using execFileAsync with array args to prevent injection)
   if (options.debug) {
     console.error('[DEBUG] Exporting image to: ' + tarPath);
   }
-  await execAsync('docker save ' + image + ' -o ' + tarPath, { timeout });
+  await execFileAsync('docker', ['save', image, '-o', tarPath], { timeout });
 
   // Create extraction directory
   await fs.promises.mkdir(extractDir, { recursive: true });
 
-  // Extract tar
-  await execAsync('tar -xf ' + tarPath + ' -C ' + extractDir, { timeout: 30000 });
+  // Extract tar (using execFileAsync with array args to prevent injection)
+  await execFileAsync('tar', ['-xf', tarPath, '-C', extractDir], { timeout: 30000 });
 
   // Find and extract layer tarballs
   const layersDir = path.join(tempDir, 'layers');
@@ -147,7 +169,8 @@ async function exportAndExtractImage(
           await fs.promises.mkdir(layerExtractDir, { recursive: true });
 
           try {
-            await execAsync('tar -xf ' + layerPath + ' -C ' + layerExtractDir, {
+            // Use execFileAsync with array args to prevent injection
+            await execFileAsync('tar', ['-xf', layerPath, '-C', layerExtractDir], {
               timeout: 60000,
             });
             extractedLayers.push(layerExtractDir);
@@ -410,7 +433,20 @@ export async function scanContainerImage(
   image: string,
   options: ContainerScanOptions = {}
 ): Promise<ContainerScanResult> {
-  const tempDir = options.tempDir || path.join(os.tmpdir(), 'react2shell-' + Date.now());
+  // Validate image name to prevent command injection
+  if (!validateImageName(image)) {
+    return {
+      cve: 'CVE-2025-55182',
+      vulnerable: false,
+      scanTime: new Date().toISOString(),
+      projects: [],
+      errors: ['Invalid image name. Image names must not contain shell metacharacters.'],
+      image,
+    };
+  }
+
+  // Use unique temp directory to prevent race conditions between concurrent scans
+  const tempDir = options.tempDir || fs.mkdtempSync(path.join(os.tmpdir(), 'react2shell-'));
 
   try {
     // Check Docker availability

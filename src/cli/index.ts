@@ -153,7 +153,7 @@ program
     dryRun?: boolean;
     push?: boolean;
   }) => {
-    const { execSync } = await import('child_process');
+    const { execSync, spawnSync } = await import('child_process');
     const absolutePath = resolve(path);
 
     // First scan for vulnerabilities
@@ -164,7 +164,12 @@ program
       return;
     }
 
-    const branchName = options.branch || 'fix/cve-2025-55182';
+    // Sanitize branch name to prevent command injection
+    const rawBranchName = options.branch || 'fix/cve-2025-55182';
+    const branchName = rawBranchName.replace(/[^a-zA-Z0-9/_.-]/g, '-');
+    if (branchName !== rawBranchName) {
+      console.log(`${colors.yellow}Warning: Branch name sanitized to: ${branchName}${colors.reset}`);
+    }
     const vulnCount = scanResult.projects.reduce((sum, p) => sum + p.findings.length, 0);
 
     console.log(`${colors.cyan}Found ${vulnCount} vulnerable package(s)${colors.reset}`);
@@ -210,9 +215,12 @@ program
       // Get current branch
       const currentBranch = execSync('git branch --show-current', { cwd: absolutePath, encoding: 'utf-8' }).trim();
 
-      // Create new branch
+      // Create new branch (using spawnSync to prevent command injection)
       console.log(`${colors.cyan}Creating branch: ${branchName}${colors.reset}`);
-      execSync(`git checkout -b ${branchName}`, { stdio: 'inherit', cwd: absolutePath });
+      const checkoutResult = spawnSync('git', ['checkout', '-b', branchName], { stdio: 'inherit', cwd: absolutePath });
+      if (checkoutResult.status !== 0) {
+        throw new Error(`Failed to create branch: ${branchName}`);
+      }
 
       // Fix vulnerabilities
       console.log(`${colors.cyan}Fixing vulnerabilities...${colors.reset}`);
@@ -243,7 +251,11 @@ ${scanResult.projects
 
 Security Advisory: https://react.dev/blog/2025/12/03/critical-security-vulnerability-in-react-server-components`;
 
-      execSync(`git commit -m "${commitMessage}"`, { stdio: 'inherit', cwd: absolutePath });
+      // Use spawnSync with array args to prevent command injection from commit message
+      const commitResult = spawnSync('git', ['commit', '-m', commitMessage], { stdio: 'inherit', cwd: absolutePath });
+      if (commitResult.status !== 0) {
+        throw new Error('Failed to commit changes');
+      }
 
       if (options.push === false) {
         console.log();
@@ -254,9 +266,12 @@ Security Advisory: https://react.dev/blog/2025/12/03/critical-security-vulnerabi
         return;
       }
 
-      // Push and create PR
+      // Push and create PR (using spawnSync to prevent command injection)
       console.log(`${colors.cyan}Pushing branch...${colors.reset}`);
-      execSync(`git push -u origin ${branchName}`, { stdio: 'inherit', cwd: absolutePath });
+      const pushResult = spawnSync('git', ['push', '-u', 'origin', branchName], { stdio: 'inherit', cwd: absolutePath });
+      if (pushResult.status !== 0) {
+        throw new Error('Failed to push branch');
+      }
 
       console.log(`${colors.cyan}Creating PR...${colors.reset}`);
       const prBody = `## Summary
@@ -277,10 +292,14 @@ ${scanResult.projects
 - [ ] Run tests to verify no regressions
 - [ ] Deploy to staging and verify functionality`;
 
-      execSync(`gh pr create --title "fix: patch CVE-2025-55182 vulnerabilities" --body "${prBody.replace(/"/g, '\\"')}"`, {
+      // Use spawnSync with array args to prevent command injection from PR body
+      const prResult = spawnSync('gh', ['pr', 'create', '--title', 'fix: patch CVE-2025-55182 vulnerabilities', '--body', prBody], {
         stdio: 'inherit',
         cwd: absolutePath,
       });
+      if (prResult.status !== 0) {
+        throw new Error('Failed to create PR');
+      }
 
       console.log();
       console.log(`${colors.green}✓${colors.reset} PR created successfully!`);

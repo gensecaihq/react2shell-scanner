@@ -10,6 +10,9 @@ export interface DetectionResult {
   details: string;
 }
 
+// Maximum payload size to analyze (10MB) - prevents ReDoS attacks
+const MAX_PAYLOAD_SIZE = 10 * 1024 * 1024;
+
 /**
  * Known exploit patterns for CVE-2025-55182
  * These patterns detect malicious RSC Flight protocol payloads
@@ -139,6 +142,17 @@ const RSC_HEADERS = [
  */
 export function detectExploitPatterns(body: string | Buffer): DetectionResult {
   const content = typeof body === 'string' ? body : body.toString('utf-8');
+
+  // Limit payload size to prevent ReDoS attacks
+  if (content.length > MAX_PAYLOAD_SIZE) {
+    return {
+      detected: true,
+      patterns: ['payload_too_large'],
+      severity: 'high',
+      details: `Payload size (${(content.length / 1024 / 1024).toFixed(1)}MB) exceeds maximum allowed (${MAX_PAYLOAD_SIZE / 1024 / 1024}MB) - potential DoS attempt`,
+    };
+  }
+
   const detectedPatterns: string[] = [];
   let maxSeverity: 'high' | 'medium' | 'low' = 'low';
 

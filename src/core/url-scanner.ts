@@ -43,6 +43,76 @@ const DEFAULT_TIMEOUT = 10000;
 const DEFAULT_THREADS = 10;
 
 /**
+ * Validate URL to prevent SSRF attacks
+ * Only allows http/https protocols and blocks internal/private IPs
+ */
+function validateUrl(input: string): { valid: boolean; url?: string; error?: string } {
+  let urlString = input.trim();
+
+  // Add protocol if missing
+  if (!urlString.startsWith('http://') && !urlString.startsWith('https://')) {
+    urlString = 'https://' + urlString;
+  }
+
+  try {
+    const parsed = new URL(urlString);
+
+    // Only allow http and https protocols
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return { valid: false, error: `Invalid protocol: ${parsed.protocol}. Only http/https allowed.` };
+    }
+
+    // Block localhost and loopback addresses
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname === '0.0.0.0' ||
+      hostname.endsWith('.localhost')
+    ) {
+      return { valid: false, error: 'Scanning localhost/loopback addresses is not allowed.' };
+    }
+
+    // Block private IP ranges (RFC 1918)
+    const ipMatch = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipMatch) {
+      const [, a, b] = ipMatch.map(Number);
+      // 10.0.0.0/8
+      if (a === 10) {
+        return { valid: false, error: 'Scanning private IP ranges (10.x.x.x) is not allowed.' };
+      }
+      // 172.16.0.0/12
+      if (a === 172 && b >= 16 && b <= 31) {
+        return { valid: false, error: 'Scanning private IP ranges (172.16-31.x.x) is not allowed.' };
+      }
+      // 192.168.0.0/16
+      if (a === 192 && b === 168) {
+        return { valid: false, error: 'Scanning private IP ranges (192.168.x.x) is not allowed.' };
+      }
+      // 169.254.0.0/16 (link-local)
+      if (a === 169 && b === 254) {
+        return { valid: false, error: 'Scanning link-local addresses (169.254.x.x) is not allowed.' };
+      }
+    }
+
+    // Block cloud metadata endpoints
+    if (
+      hostname === '169.254.169.254' || // AWS/GCP/Azure metadata
+      hostname === 'metadata.google.internal' ||
+      hostname === 'metadata.goog' ||
+      hostname.endsWith('.internal')
+    ) {
+      return { valid: false, error: 'Scanning cloud metadata endpoints is not allowed.' };
+    }
+
+    return { valid: true, url: urlString };
+  } catch {
+    return { valid: false, error: 'Invalid URL format.' };
+  }
+}
+
+/**
  * RSC Flight protocol error/vulnerability patterns
  */
 const VULNERABILITY_PATTERNS = [
@@ -236,10 +306,20 @@ export async function scanUrl(
   const startTime = Date.now();
   const timestamp = new Date().toISOString();
 
-  let targetUrl = url.trim();
-  if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-    targetUrl = 'https://' + targetUrl;
+  // Validate URL to prevent SSRF
+  const validation = validateUrl(url);
+  if (!validation.valid || !validation.url) {
+    return {
+      url: url.trim(),
+      vulnerable: false,
+      statusCode: null,
+      responseTime: 0,
+      error: validation.error || 'Invalid URL',
+      timestamp,
+    };
   }
+
+  const targetUrl = validation.url;
 
   try {
     // First, check page source for vulnerable version indicators
